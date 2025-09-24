@@ -1,0 +1,26 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Streamlit secrets
+.secrets.toml
+
+# PDF generati (opzionale, se dovessi salvare)
+*.pdf
+# Virtual environment
+venv/
+
+# Streamlit temp files
+.streamlit/
+
+# PDF generati
+*.pdf
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# OS files
+.DS_Store
+Thumbs.db
