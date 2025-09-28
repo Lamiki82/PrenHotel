@@ -198,22 +198,6 @@ with st.sidebar:
     st.markdown("---")
     c1, c2 = st.columns(2)
 
-    with c1:
-        if st.button("🆕 Nuova prenotazione"):
-            defaults = {
-                "s_azienda": "",
-                "s_dipendente": "",
-                "s_dipendente2": "",
-                "s_telefono": "",
-                "s_note": "",
-                "s_tipo": "singola",
-                "s_uso": "singolo",
-                "s_camera": "",
-                "selezionate": []
-            }
-            st.session_state.update(defaults)
-            st.rerun()
-
     with c2:
         if st.button("Prenota"):
             if not st.session_state.s_azienda or not st.session_state.s_dipendente or not st.session_state.selezionate or st.session_state.s_camera=="Nessuna camera disponibile":
