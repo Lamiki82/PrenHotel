@@ -61,120 +61,114 @@ PREZZI = {
     "bassa": {"matrimoniale": 80, "doppia": 80, "doppia_uso_singolo": 65, "singola": 57},
 }
 CAMERE = {
-    "Primo Piano": {"doppie": ["107", "106", "105", "104", "101", "103"], "quadruple": ["109"], "matrimoniale": ["109"], "singole": ["102"]},
-    "Secondo Piano": {"singole": ["202"], "matrimoniale": ["209"], "doppie": ["207", "204", "203", "201"], "quadruple": ["205", "208"]},
+    "Primo Piano": {"doppie":["107","106","105","104","101","103"], "quadruple":["109"], "matrimoniale":["109"], "singole":["102"]},
+    "Secondo Piano": {"singole":["202"], "matrimoniale":["209"], "doppie":["207","204","203","201"], "quadruple":["205","208"]},
 }
 TIPO_TO_KEY = {"singola": "singole", "doppia": "doppie", "matrimoniale": "matrimoniale", "quadruple": "quadruple"}
 
 # --- Session state inizializzazione ---
-for key in ["prenotazioni", "selezionate", "current_month", "current_year", "holidays",
-            "s_azienda", "s_dipendente", "s_dipendente2", "s_tipo", "s_uso", "s_camera",
-            "s_telefono", "s_note"]:
+for key in ["prenotazioni","selezionate","current_month","current_year","holidays",
+            "s_azienda","s_dipendente","s_dipendente2","s_tipo","s_uso","s_camera",
+            "s_telefono","s_note","reset_fields"]:
     if key not in st.session_state:
-        if key == "current_month": st.session_state[key] = datetime.today().month
-        elif key == "current_year": st.session_state[key] = 2025
-        elif key == "s_tipo": st.session_state[key] = "singola"
-        elif key == "s_uso": st.session_state[key] = "singolo"
-        elif key == "s_camera": st.session_state[key] = ""
-        elif key in ["prenotazioni", "selezionate"]: st.session_state[key] = []
-        elif key == "holidays": st.session_state[key] = set()
-        else: st.session_state[key] = ""
+        if key=="current_month": st.session_state[key]=datetime.today().month
+        elif key=="current_year": st.session_state[key]=2025
+        elif key=="s_tipo": st.session_state[key]="singola"
+        elif key=="s_uso": st.session_state[key]="singolo"
+        elif key=="s_camera": st.session_state[key]=""
+        elif key in ["prenotazioni","selezionate"]: st.session_state[key]=[]
+        elif key=="holidays": st.session_state[key]=set()
+        elif key=="reset_fields": st.session_state[key]=False
+        else: st.session_state[key]=""
 
 # --- Funzioni ---
-def parse_date(s): return datetime.strptime(s, "%d/%m/%Y").date()
+def parse_date(s): return datetime.strptime(s,"%d/%m/%Y").date()
 
 def get_booked_dates():
-    booked = set()
+    booked=set()
     for p in st.session_state.prenotazioni:
         try:
-            d0 = parse_date(p[3])
-            n = int(p[4])
+            d0=parse_date(p[3])
+            n=int(p[4])
             for i in range(n):
-                booked.add(d0 + timedelta(days=i))
+                booked.add(d0+timedelta(days=i))
         except:
             continue
     return booked
 
 def bookings_for_day(d):
-    hits = []
-    for idx, p in enumerate(st.session_state.prenotazioni):
+    hits=[]
+    for idx,p in enumerate(st.session_state.prenotazioni):
         try:
-            d0 = parse_date(p[3])
-            n = int(p[4])
-            if d0 <= d < d0 + timedelta(days=n):
-                hits.append((idx, p))
+            d0=parse_date(p[3])
+            n=int(p[4])
+            if d0<=d<d0+timedelta(days=n):
+                hits.append((idx,p))
         except:
             continue
     return hits
 
 def is_consecutive(dates):
     if not dates: return True
-    ds = sorted(dates)
-    for a, b in zip(ds, ds[1:]):
-        if (b - a).days != 1: return False
+    ds=sorted(dates)
+    for a,b in zip(ds,ds[1:]):
+        if (b-a).days!=1: return False
     return True
 
-def calcola_prezzo_per_notti(tipo, uso, dates):
-    totale = 0
+def calcola_prezzo_per_notti(tipo,uso,dates):
+    totale=0
     for d in dates:
-        key = "doppia_uso_singolo" if (tipo == "doppia" and uso == "singolo") else tipo
-        alta = date(d.year, 5, 9) < d <= date(d.year, 9, 7)
-        stagione = "alta" if alta else "bassa"
-        totale += PREZZI[stagione][key]
+        key="doppia_uso_singolo" if(tipo=="doppia" and uso=="singolo") else tipo
+        alta=date(d.year,5,9)<d<=date(d.year,9,7)
+        stagione="alta" if alta else "bassa"
+        totale+=PREZZI[stagione][key]
     return totale
 
 def calcola_totale_prenotazioni():
     return sum(float(p[8]) for p in st.session_state.prenotazioni)
 
 def genera_pdf_prenotazioni():
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4)
-    elements = []
-    styles = getSampleStyleSheet()
-    timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    elements.append(Paragraph(f"Riepilogo Prenotazioni - {timestamp}", styles['Title']))
-    elements.append(Spacer(1, 12))
-    data = [["Azienda", "Dipendente", "Dipendente 2", "Check-in", "Notti", "Tipo", "Camera", "Uso", "Totale €", "Telefono", "Note"]]
+    buffer=BytesIO()
+    doc=SimpleDocTemplate(buffer,pagesize=A4)
+    elements=[]
+    styles=getSampleStyleSheet()
+    timestamp=datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    elements.append(Paragraph(f"Riepilogo Prenotazioni - {timestamp}",styles['Title']))
+    elements.append(Spacer(1,12))
+    data=[["Azienda","Dipendente","Dipendente 2","Check-in","Notti","Tipo","Camera","Uso","Totale €","Telefono","Note"]]
     for p in st.session_state.prenotazioni:
-        data.append([p[0], p[1], p[2], p[3], str(p[4]), p[5], p[6], p[7], f"€{p[8]}", p[9], p[10]])
-    table = Table(data, repeatRows=1)
+        data.append([p[0],p[1],p[2],p[3],str(p[4]),p[5],p[6],p[7],f"€{p[8]}",p[9],p[10]])
+    table=Table(data,repeatRows=1)
     table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('ALIGN', (4, 1), (4, -1), 'CENTER'),
-        ('ALIGN', (8, 1), (8, -1), 'RIGHT')
+        ('BACKGROUND',(0,0),(-1,0),colors.lightblue),
+        ('TEXTCOLOR',(0,0),(-1,0),colors.white),
+        ('GRID',(0,0),(-1,-1),0.5,colors.grey),
+        ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),
+        ('ALIGN',(4,1),(4,-1),'CENTER'),
+        ('ALIGN',(8,1),(8,-1),'RIGHT')
     ]))
     elements.append(table)
-    elements.append(Spacer(1, 12))
-    totale = calcola_totale_prenotazioni()
-    elements.append(Paragraph(f"Totale prenotazioni: €{totale}", styles['Heading2']))
+    elements.append(Spacer(1,12))
+    totale=calcola_totale_prenotazioni()
+    elements.append(Paragraph(f"Totale prenotazioni: €{totale}",styles['Heading2']))
     doc.build(elements)
     buffer.seek(0)
     return buffer
 
-# --- Sidebar ---
+# --- Sidebar aggiornata e sicura ---
 with st.sidebar:
-    st.text_input("Nome Azienda", key="s_azienda", value=st.session_state.s_azienda)
-    st.text_input("Nome Dipendente", key="s_dipendente", value=st.session_state.s_dipendente)
-    st.text_input("Numero di telefono", key="s_telefono", value=st.session_state.s_telefono)
 
-    st.selectbox(
-        "Tipo Camera", ["singola", "doppia", "matrimoniale", "quadruple"], 
-        key="s_tipo",
-        index=["singola", "doppia", "matrimoniale", "quadruple"].index(st.session_state.s_tipo)
-    )
-    st.selectbox(
-        "Uso", ["singolo", "doppio"], 
-        key="s_uso", 
-        index=["singolo", "doppio"].index(st.session_state.s_uso)
-    )
+    # Input utente
+    st.text_input("Nome Azienda", key="s_azienda")
+    st.text_input("Nome Dipendente", key="s_dipendente")
+    st.text_input("Numero di telefono", key="s_telefono")
+    st.selectbox("Tipo Camera", ["singola", "doppia", "matrimoniale", "quadruple"], key="s_tipo")
+    st.selectbox("Uso", ["singolo", "doppio"], key="s_uso")
 
     if st.session_state.s_uso == "doppio":
-        st.text_input("Dipendente 2 (facoltativo)", key="s_dipendente2", value=st.session_state.s_dipendente2)
+        st.text_input("Dipendente 2 (facoltativo)", key="s_dipendente2")
 
-    st.text_area("Richieste e segnalazioni", key="s_note", value=st.session_state.s_note, height=60)
+    st.text_area("Richieste e segnalazioni", key="s_note", height=60)
 
     # Lista camere disponibile
     key_tipo = TIPO_TO_KEY.get(st.session_state.s_tipo, st.session_state.s_tipo)
@@ -195,15 +189,17 @@ with st.sidebar:
     # Pulsante Nuova Prenotazione
     with c1:
         if st.button("🆕 Nuova prenotazione"):
-            st.session_state.s_azienda = ""
-            st.session_state.s_dipendente = ""
-            st.session_state.s_dipendente2 = ""
-            st.session_state.s_telefono = ""
-            st.session_state.s_note = ""
-            st.session_state.s_tipo = "singola"
-            st.session_state.s_uso = "singolo"
-            st.session_state.s_camera = ""
-            st.session_state.selezionate = []
+            st.session_state.update({
+                "s_azienda": "",
+                "s_dipendente": "",
+                "s_dipendente2": "",
+                "s_telefono": "",
+                "s_note": "",
+                "s_tipo": "singola",
+                "s_uso": "singolo",
+                "s_camera": "",
+                "selezionate": []
+            })
             st.rerun()
 
     # Pulsante Prenota
@@ -264,7 +260,7 @@ with st.sidebar:
         link_whatsapp = f"https://wa.me/?text={quote(messaggio)}"
         st.markdown(f"[Invia richiesta con WhatsApp]({link_whatsapp})", unsafe_allow_html=True)
 
-# --- Main: Calendario ---
+# --- Main: Calendario aggiornato ---
 mese = st.session_state.current_month
 anno = st.session_state.current_year
 
@@ -272,7 +268,6 @@ cal = calendar.Calendar(firstweekday=0)
 days_matrix = cal.monthdatescalendar(anno, mese)
 booked = get_booked_dates()
 
-# Copia temporanea per le selezioni
 nuove_selezionate = st.session_state.selezionate.copy()
 
 for settimana in days_matrix:
@@ -296,10 +291,8 @@ for settimana in days_matrix:
         tooltip_attr = f"title='{tooltip}'" if tooltip else ""
         mark_html = "<div class='day-mark'>X</div>" if is_selected or is_booked else ""
 
-        col.markdown(f"<div class='{classes}' {tooltip_attr}><div class='day-number'>{d.day}</div>{mark_html}</div>",
-                     unsafe_allow_html=True)
+        col.markdown(f"<div class='{classes}' {tooltip_attr}><div class='day-number'>{d.day}</div>{mark_html}</div>", unsafe_allow_html=True)
 
-        # Checkbox per selezione
         key_chk = f"sel_{d.isoformat()}"
         checked = d in st.session_state.selezionate
         new_val = col.checkbox("", value=checked, key=key_chk)
@@ -314,10 +307,8 @@ for settimana in days_matrix:
 
 st.session_state.selezionate = nuove_selezionate
 
-# Titolo mese
 st.markdown(f"<div class='calendar-title'>{calendar.month_name[mese]} {anno}</div>", unsafe_allow_html=True)
 
-# Navigazione mesi
 c1, c2, c3 = st.columns([1, 6, 1])
 with c1:
     if st.button("⬅️", key="prev"):
