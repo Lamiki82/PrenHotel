@@ -161,85 +161,89 @@ def genera_pdf_prenotazioni():
     buffer.seek(0)
     return buffer
 
-# --- Sidebar ---
+# --- Sidebar aggiornata e sicura ---
 with st.sidebar:
-    # Valori temporanei per reset
-    s_azienda_val = "" if st.session_state.reset_fields else st.session_state.s_azienda
-    s_dipendente_val = "" if st.session_state.reset_fields else st.session_state.s_dipendente
-    s_dipendente2_val = "" if st.session_state.reset_fields else st.session_state.s_dipendente2
-    s_telefono_val = "" if st.session_state.reset_fields else st.session_state.s_telefono
-    s_note_val = "" if st.session_state.reset_fields else st.session_state.s_note
-    s_tipo_val = "singola" if st.session_state.reset_fields else st.session_state.s_tipo
-    s_uso_val = "singolo" if st.session_state.reset_fields else st.session_state.s_uso
-    s_camera_val = "" if st.session_state.reset_fields else st.session_state.s_camera
+    # Valori temporanei considerando il reset_fields
+    s_azienda_val = "" if st.session_state.get("reset_fields", False) else st.session_state.get("s_azienda", "")
+    s_dipendente_val = "" if st.session_state.get("reset_fields", False) else st.session_state.get("s_dipendente", "")
+    s_dipendente2_val = "" if st.session_state.get("reset_fields", False) else st.session_state.get("s_dipendente2", "")
+    s_telefono_val = "" if st.session_state.get("reset_fields", False) else st.session_state.get("s_telefono", "")
+    s_note_val = "" if st.session_state.get("reset_fields", False) else st.session_state.get("s_note", "")
+    s_tipo_val = "singola" if st.session_state.get("reset_fields", False) else st.session_state.get("s_tipo", "singola")
+    s_uso_val = "singolo" if st.session_state.get("reset_fields", False) else st.session_state.get("s_uso", "singolo")
+    s_camera_val = "" if st.session_state.get("reset_fields", False) else st.session_state.get("s_camera", "")
 
+    # Input utente
     st.text_input("Nome Azienda", key="s_azienda", value=s_azienda_val)
     st.text_input("Nome Dipendente", key="s_dipendente", value=s_dipendente_val)
     st.text_input("Numero di telefono", key="s_telefono", value=s_telefono_val)
-    st.selectbox("Tipo Camera", ["singola","doppia","matrimoniale","quadruple"], key="s_tipo",
-                 index=["singola","doppia","matrimoniale","quadruple"].index(s_tipo_val))
-    st.selectbox("Uso", ["singolo","doppio"], key="s_uso",
-                 index=["singolo","doppio"].index(s_uso_val))
-    if st.session_state.s_uso=="doppio":
+    st.selectbox(
+        "Tipo Camera", ["singola", "doppia", "matrimoniale", "quadruple"], 
+        key="s_tipo",
+        index=["singola", "doppia", "matrimoniale", "quadruple"].index(s_tipo_val)
+    )
+    st.selectbox(
+        "Uso", ["singolo", "doppio"], 
+        key="s_uso", 
+        index=["singolo", "doppio"].index(s_uso_val)
+    )
+
+    if st.session_state.s_uso == "doppio":
         st.text_input("Dipendente 2 (facoltativo)", key="s_dipendente2", value=s_dipendente2_val)
+
     st.text_area("Richieste e segnalazioni", key="s_note", value=s_note_val, height=60)
 
-    # Lista camere
+    # Lista camere disponibili
     key_tipo = TIPO_TO_KEY.get(st.session_state.s_tipo, st.session_state.s_tipo)
     camere_list = []
     for piano in CAMERE.values():
         camere_list.extend(piano.get(key_tipo, []))
     if not camere_list:
         camere_list = ["Nessuna camera disponibile"]
+
     sel_index = 0
-    if st.session_state.s_camera in camere_list:
+    if st.session_state.s_camera and st.session_state.s_camera in camere_list:
         sel_index = camere_list.index(st.session_state.s_camera)
     st.selectbox("Camera", camere_list, key="s_camera", index=sel_index)
 
     st.markdown("---")
-    c1,c2 = st.columns(2)
+    c1, c2 = st.columns(2)
 
-    # Pulsante nuova prenotazione
-if st.button("🆕 Nuova prenotazione"):
-    keys_defaults = {
-        "s_azienda": "",
-        "s_dipendente": "",
-        "s_dipendente2": "",
-        "s_telefono": "",
-        "s_note": "",
-        "s_tipo": "singola",
-        "s_uso": "singolo",
-        "s_camera": "",
-        "selezionate": []
-    }
-    for k, v in keys_defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
-        else:
-            st.session_state[k] = v
-    st.rerun()
-
+    # Pulsante Nuova Prenotazione
+    with c1:
+        if st.button("🆕 Nuova prenotazione"):
+            # Aggiorna solo le chiavi necessarie, evitando session_state.update()
+            st.session_state["s_azienda"] = ""
+            st.session_state["s_dipendente"] = ""
+            st.session_state["s_dipendente2"] = ""
+            st.session_state["s_telefono"] = ""
+            st.session_state["s_note"] = ""
+            st.session_state["s_tipo"] = "singola"
+            st.session_state["s_uso"] = "singolo"
+            st.session_state["s_camera"] = ""
+            st.session_state["selezionate"] = []
+            st.rerun()
 
     # Pulsante Prenota
     with c2:
         if st.button("Prenota"):
-            if not st.session_state.s_azienda or not st.session_state.s_dipendente or not st.session_state.selezionate or st.session_state.s_camera=="Nessuna camera disponibile":
+            if not st.session_state.s_azienda or not st.session_state.s_dipendente or not st.session_state.selezionate or st.session_state.s_camera == "Nessuna camera disponibile":
                 st.warning("Compila tutti i campi obbligatori e seleziona almeno un giorno.")
             elif not is_consecutive(st.session_state.selezionate):
                 st.error("I giorni selezionati devono essere consecutivi.")
             else:
-                conflicts=[]
+                conflicts = []
                 for d in st.session_state.selezionate:
                     hits = bookings_for_day(d)
-                    for _,p in hits:
-                        if p[6]==st.session_state.s_camera:
+                    for _, p in hits:
+                        if p[6] == st.session_state.s_camera:
                             conflicts.append(d.strftime("%d/%m/%Y"))
                 if conflicts:
                     st.error(f"Conflitto: la camera {st.session_state.s_camera} è già prenotata in: {', '.join(conflicts)}")
                 else:
-                    n=len(st.session_state.selezionate)
-                    start=min(st.session_state.selezionate)
-                    total=calcola_prezzo_per_notti(st.session_state.s_tipo, st.session_state.s_uso, sorted(st.session_state.selezionate))
+                    n = len(st.session_state.selezionate)
+                    start = min(st.session_state.selezionate)
+                    total = calcola_prezzo_per_notti(st.session_state.s_tipo, st.session_state.s_uso, sorted(st.session_state.selezionate))
                     st.session_state.prenotazioni.append([
                         st.session_state.s_azienda,
                         st.session_state.s_dipendente,
@@ -254,28 +258,37 @@ if st.button("🆕 Nuova prenotazione"):
                         st.session_state.s_note
                     ])
                     st.success(f"Prenotazione registrata. Totale: €{total}")
-                    st.session_state.selezionate=[]
+                    st.session_state.selezionate = []
 
     # Reset del flag reset_fields
-    st.session_state.reset_fields=False
+    if st.session_state.get("reset_fields", False):
+        st.session_state.reset_fields = False
 
-    # Tabella prenotazioni
+    # Tabella prenotazioni e controlli
     if st.session_state.prenotazioni:
-        dfp=pd.DataFrame(st.session_state.prenotazioni, columns=["Azienda","Dipendente","Dipendente 2","Check-in","Notti","Tipo","Camera","Uso","Totale €","Telefono","Note"])
-        st.dataframe(dfp,use_container_width=True)
+        dfp = pd.DataFrame(
+            st.session_state.prenotazioni,
+            columns=["Azienda","Dipendente","Dipendente 2","Check-in","Notti","Tipo","Camera","Uso","Totale €","Telefono","Note"]
+        )
+        st.dataframe(dfp, use_container_width=True)
+
+        # Eliminazione record
         idx_to_remove = st.number_input("Elimina record (indice)", min_value=0, max_value=len(dfp)-1, step=1)
         if st.button("Elimina record selezionato"):
             st.session_state.prenotazioni.pop(int(idx_to_remove))
             st.success(f"Record {int(idx_to_remove)} eliminato.")
 
-        pdf_buffer=genera_pdf_prenotazioni()
+        # Download PDF
+        pdf_buffer = genera_pdf_prenotazioni()
         st.download_button("Riepilogo PDF", data=pdf_buffer, file_name="richiesta_preno.pdf", mime="application/pdf")
 
+        # Link WhatsApp
         totale = calcola_totale_prenotazioni()
-        riepilogo="\n".join([f"{p[0]} {p[1]} {p[2]} {p[3]} - {p[4]}n - €{p[8]}" for p in st.session_state.prenotazioni])
-        messaggio=f"Richiesta di prenotazione:\n{riepilogo}\nTotale: €{totale}"
-        link_whatsapp=f"https://wa.me/?text={quote(messaggio)}"
+        riepilogo = "\n".join([f"{p[0]} {p[1]} {p[2]} {p[3]} - {p[4]}n - €{p[8]}" for p in st.session_state.prenotazioni])
+        messaggio = f"Richiesta di prenotazione:\n{riepilogo}\nTotale: €{totale}"
+        link_whatsapp = f"https://wa.me/?text={quote(messaggio)}"
         st.markdown(f"[Invia richiesta con WhatsApp]({link_whatsapp})", unsafe_allow_html=True)
+
 
 # --- Calendario ---
 mese = st.session_state.current_month
