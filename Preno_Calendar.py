@@ -36,12 +36,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- Titolo principale ---
 st.markdown('<div class="app-title">PrenHotel</div>', unsafe_allow_html=True)
 
-# --- Carico password da secrets ---
+# --- Accesso ---
 ACCESS_KEY = st.secrets["credentials"]["access_key"]
-
 if "access_granted" not in st.session_state:
     st.session_state.access_granted = False
 
@@ -61,12 +59,12 @@ PREZZI = {
     "bassa": {"matrimoniale": 80, "doppia": 80, "doppia_uso_singolo": 65, "singola": 57},
 }
 CAMERE = {
-    "Primo Piano": {"doppie":["107","106","105","104","101","103"], "quadruple":["109"], "matrimoniale":["109"], "singole":["102"]},
+    "Primo Piano": {"doppie": ["107","106","105","104","101","103"], "quadruple":["109"], "matrimoniale":["109"], "singole":["102"]},
     "Secondo Piano": {"singole":["202"], "matrimoniale":["209"], "doppie":["207","204","203","201"], "quadruple":["205","208"]},
 }
-TIPO_TO_KEY = {"singola": "singole", "doppia": "doppie", "matrimoniale": "matrimoniale", "quadruple": "quadruple"}
+TIPO_TO_KEY = {"singola":"singole","doppia":"doppie","matrimoniale":"matrimoniale","quadruple":"quadruple"}
 
-# --- Session state inizializzazione sicura ---
+# --- Session State sicuro ---
 defaults = {
     "prenotazioni": [],
     "selezionate": [],
@@ -80,8 +78,7 @@ defaults = {
     "s_uso": "singolo",
     "s_camera": "",
     "s_telefono": "",
-    "s_note": "",
-    "reset_fields": False
+    "s_note": ""
 }
 for key, value in defaults.items():
     if key not in st.session_state:
@@ -89,37 +86,193 @@ for key, value in defaults.items():
 
 # --- Funzioni ---
 def parse_date(s): return datetime.strptime(s,"%d/%m/%Y").date()
-
 def get_booked_dates():
     booked=set()
     for p in st.session_state.prenotazioni:
         try:
             d0=parse_date(p[3])
             n=int(p[4])
-            for i in range(n):
-                booked.add(d0+timedelta(days=i))
-        except:
-            continue
+            for i in range(n): booked.add(d0+timedelta(days=i))
+        except: continue
     return booked
-
 def bookings_for_day(d):
     hits=[]
-    for idx,p in enumerate(st.session_state.prenotazioni):
+    for _,p in enumerate(st.session_state.prenotazioni):
         try:
             d0=parse_date(p[3])
             n=int(p[4])
-            if d0<=d<d0+timedelta(days=n):
-                hits.append((idx,p))
-        except:
-            continue
+            if d0<=d<d0+timedelta(days=n): hits.append((_,p))
+        except: continue
     return hits
-
 def is_consecutive(dates):
     if not dates: return True
     ds=sorted(dates)
-    for a,b in zip(ds,ds[1:]):
-        if (b-a).days!=1: return False
-    return True
+    return all((b-a).days==1 for a,b in zip(ds,ds[1:]))
+def calcola_prezzo_per_notti(tipo,uso,dates):
+    totale=0
+    for d in dates:
+        key="doppia_uso_singolo" if(tipo=="doppia" and uso=="singolo") else tipo
+        stagione="alta" if date(d.year,5,9)<d<=date(d.year,9,7) else "bassa"
+        totale+=PREZZI[stagione][key]
+    return totale
+def calcola_totale_prenotazioni():
+    return sum(float(p[8]) for p in st.session_state.prenotazioni)
+def genera_pdf_prenotazioni():
+    buffer=BytesIO()
+    doc=SimpleDocTemplate(buffer,pagesize=A4)
+    elements=[]
+    styles=getSampleStyleSheet()
+    elements.append(Paragraph(f"Riepilogo Prenotazioni - {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}",styles['Title']))
+    elements.append(Spacer(1,12))
+    data=[["Azienda","Dipendente","Dipendente 2","Check-in","Notti","Tipo","Camera","Uso","Totale €","Telefono","Note"]]
+    for p in st.session_state.prenotazioni:
+        data.append([p[0],p[1],p[2],p[3],str(p[4]),p[5],p[6],p[7],f"€{p[8]}",p[9],p[10]])
+    table=Table(data,repeatRows=1)
+    table.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.lightblue),
+                               ('TEXTCOLOR',(0,0),(-1,0),colors.white),
+                               ('GRID',(0,0),(-1,-1),0.5,colors.grey),
+                               ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),
+                               ('ALIGN',(4,1),(4,-1),'CENTER'),
+                               ('ALIGN',(8,1),(8,-1),'RIGHT')]))
+    elements.append(table)
+    elements.append(Spacer(1,12))
+    elements.append(Paragraph(f"Totale prenotazioni: €{calcola_totale_prenotazioni()}",styles['Heading2']))
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
+# --- Sidebar ---
+with st.sidebar:
+    st.text_input("Nome Azienda", key="s_azienda", value=st.session_state.s_azienda)
+    st.text_input("Nome Dipendente", key="s_dipendente", value=st.session_state.s_dipendente)
+    st.text_input("Telefono", key="s_telefono", value=st.session_state.s_telefono)
+    st.selectbox("Tipo Camera", ["singola","doppia","matrimoniale","quadruple"], key="s_tipo",
+                 index=["singola","doppia","matrimoniale","quadruple"].index(st.session_state.s_tipo))
+    st.selectbox("Uso", ["singolo","doppio"], key="s_uso",
+                 index=["singolo","doppio"].index(st.session_state.s_uso))
+    if st.session_state.s_uso=="doppio":
+        st.text_input("Dipendente 2", key="s_dipendente2", value=st.session_state.s_dipendente2)
+    st.text_area("Note", key="s_note", value=st.session_state.s_note, height=60)
+
+    # Lista camere
+    key_tipo=TIPO_TO_KEY.get(st.session_state.s_tipo, st.session_state.s_tipo)
+    camere_list=[]
+    for piano in CAMERE.values(): camere_list.extend(piano.get(key_tipo,[]))
+    if not camere_list: camere_list=["Nessuna camera disponibile"]
+    sel_index=camere_list.index(st.session_state.s_camera) if st.session_state.s_camera in camere_list else 0
+    st.selectbox("Camera", camere_list, key="s_camera", index=sel_index)
+
+    st.markdown("---")
+    c1,c2 = st.columns(2)
+    with c1:
+        if st.button("🆕 Nuova prenotazione"):
+            for k in ["s_azienda","s_dipendente","s_dipendente2","s_telefono","s_note","s_tipo","s_uso","s_camera"]:
+                st.session_state[k]=""
+            st.session_state.selezionate=[]
+            st.rerun()
+    with c2:
+        if st.button("Prenota"):
+            if not st.session_state.s_azienda or not st.session_state.s_dipendente or not st.session_state.selezionate or st.session_state.s_camera=="Nessuna camera disponibile":
+                st.warning("Compila tutti i campi obbligatori e seleziona almeno un giorno.")
+            elif not is_consecutive(st.session_state.selezionate):
+                st.error("I giorni selezionati devono essere consecutivi.")
+            else:
+                conflicts=[]
+                for d in st.session_state.selezionate:
+                    hits=bookings_for_day(d)
+                    for _,p in hits:
+                        if p[6]==st.session_state.s_camera: conflicts.append(d.strftime("%d/%m/%Y"))
+                if conflicts: st.error(f"Conflitto: la camera {st.session_state.s_camera} già prenotata in: {', '.join(conflicts)}")
+                else:
+                    n=len(st.session_state.selezionate)
+                    start=min(st.session_state.selezionate)
+                    total=calcola_prezzo_per_notti(st.session_state.s_tipo, st.session_state.s_uso, sorted(st.session_state.selezionate))
+                    st.session_state.prenotazioni.append([
+                        st.session_state.s_azienda,
+                        st.session_state.s_dipendente,
+                        st.session_state.s_dipendente2,
+                        start.strftime("%d/%m/%Y"),
+                        n,
+                        st.session_state.s_tipo,
+                        st.session_state.s_camera,
+                        st.session_state.s_uso,
+                        total,
+                        st.session_state.s_telefono,
+                        st.session_state.s_note
+                    ])
+                    st.success(f"Prenotazione registrata. Totale: €{total}")
+                    st.session_state.selezionate=[]
+
+    st.markdown("---")
+    if st.session_state.prenotazioni:
+        dfp=pd.DataFrame(st.session_state.prenotazioni,
+                         columns=["Azienda","Dipendente","Dipendente 2","Check-in","Notti","Tipo","Camera","Uso","Totale €","Telefono","Note"])
+        st.dataframe(dfp,use_container_width=True)
+        idx_to_remove=st.number_input("Elimina record (indice)",min_value=0,max_value=len(dfp)-1,step=1)
+        if st.button("Elimina record selezionato"):
+            st.session_state.prenotazioni.pop(int(idx_to_remove))
+            st.success(f"Record {int(idx_to_remove)} eliminato.")
+        pdf_buffer=genera_pdf_prenotazioni()
+        st.download_button("Riepilogo PDF", data=pdf_buffer, file_name="richiesta_preno.pdf", mime="application/pdf")
+        totale=calcola_totale_prenotazioni()
+        riepilogo="\n".join([f"{p[0]} {p[1]} {p[2]} {p[3]} - {p[4]}n - €{p[8]}" for p in st.session_state.prenotazioni])
+        link_whatsapp=f"https://wa.me/?text={quote(f'Richiesta prenotazione:\n{riepilogo}\nTotale: €{totale}')}"
+        st.markdown(f"[Invia richiesta con WhatsApp]({link_whatsapp})", unsafe_allow_html=True)
+
+# --- Calendario ---
+mese=st.session_state.current_month
+anno=st.session_state.current_year
+cal=calendar.Calendar(firstweekday=0)
+days_matrix=cal.monthdatescalendar(anno,mese)
+booked=get_booked_dates()
+nuove_selezionate=st.session_state.selezionate.copy()
+
+for settimana in days_matrix:
+    cols=st.columns(7)
+    for i,d in enumerate(settimana):
+        col=cols[i]
+        if d.month!=mese:
+            col.markdown("<div style='padding:12px; color:#bbb'></div>",unsafe_allow_html=True)
+            continue
+        is_holiday=(d.strftime("%d/%m/%Y") in st.session_state.holidays) or (d.weekday()==6)
+        is_selected=d in st.session_state.selezionate
+        is_booked=d in booked
+        classes="calendar-cell day-normal"
+        if is_holiday: classes="calendar-cell day-holiday"
+        if is_selected: classes="calendar-cell day-selected"
+        if is_booked: classes="calendar-cell day-booked"
+        hits=bookings_for_day(d)
+        tooltip="".join([f"{p[1]} ({p[6]}) - {p[4]}n\\n" for _,p in hits])
+        tooltip_attr=f"title='{tooltip}'" if tooltip else ""
+        mark_html="<div class='day-mark'>X</div>" if is_selected or is_booked else ""
+        col.markdown(f"<div class='{classes}' {tooltip_attr}><div class='day-number'>{d.day}</div>{mark_html}</div>",unsafe_allow_html=True)
+
+        key_chk=f"sel_{d.isoformat()}"
+        checked=d in st.session_state.selezionate
+        new_val=col.checkbox("",value=checked,key=key_chk)
+        if new_val!=checked:
+            if new_val and d not in nuove_selezionate: nuove_selezionate.append(d)
+            if not new_val and d in nuove_selezionate: nuove_selezionate.remove(d)
+
+st.session_state.selezionate=nuove_selezionate
+st.markdown(f"<div class='calendar-title'>{calendar.month_name[mese]} {anno}</div>",unsafe_allow_html=True)
+
+# Navigazione mesi
+c1,c2,c3=st.columns([1,6,1])
+with c1:
+    if st.button("⬅️", key="prev"):
+        st.session_state.current_month-=1
+        if st.session_state.current_month<1:
+            st.session_state.current_month=12
+            st.session_state.current_year-=1
+        st.rerun()
+with c3:
+    if st.button("➡️", key="next"):
+        st.session_state.current_month+=1
+        if st.session_state.current_month>12:
+            st.session_state.current_month=1
+            st.session_state.current_year+=1
+        st.rerun()
 
 def calcola_prezzo_per_notti(tipo,uso,dates):
     totale=0
@@ -161,89 +314,85 @@ def genera_pdf_prenotazioni():
     buffer.seek(0)
     return buffer
 
-# --- Sidebar aggiornata e sicura ---
+# --- Sidebar ---
 with st.sidebar:
-    # Valori temporanei considerando il reset_fields
-    s_azienda_val = "" if st.session_state.get("reset_fields", False) else st.session_state.get("s_azienda", "")
-    s_dipendente_val = "" if st.session_state.get("reset_fields", False) else st.session_state.get("s_dipendente", "")
-    s_dipendente2_val = "" if st.session_state.get("reset_fields", False) else st.session_state.get("s_dipendente2", "")
-    s_telefono_val = "" if st.session_state.get("reset_fields", False) else st.session_state.get("s_telefono", "")
-    s_note_val = "" if st.session_state.get("reset_fields", False) else st.session_state.get("s_note", "")
-    s_tipo_val = "singola" if st.session_state.get("reset_fields", False) else st.session_state.get("s_tipo", "singola")
-    s_uso_val = "singolo" if st.session_state.get("reset_fields", False) else st.session_state.get("s_uso", "singolo")
-    s_camera_val = "" if st.session_state.get("reset_fields", False) else st.session_state.get("s_camera", "")
+    # Valori temporanei per reset
+    s_azienda_val = "" if st.session_state.reset_fields else st.session_state.s_azienda
+    s_dipendente_val = "" if st.session_state.reset_fields else st.session_state.s_dipendente
+    s_dipendente2_val = "" if st.session_state.reset_fields else st.session_state.s_dipendente2
+    s_telefono_val = "" if st.session_state.reset_fields else st.session_state.s_telefono
+    s_note_val = "" if st.session_state.reset_fields else st.session_state.s_note
+    s_tipo_val = "singola" if st.session_state.reset_fields else st.session_state.s_tipo
+    s_uso_val = "singolo" if st.session_state.reset_fields else st.session_state.s_uso
+    s_camera_val = "" if st.session_state.reset_fields else st.session_state.s_camera
 
-    # Input utente
     st.text_input("Nome Azienda", key="s_azienda", value=s_azienda_val)
     st.text_input("Nome Dipendente", key="s_dipendente", value=s_dipendente_val)
     st.text_input("Numero di telefono", key="s_telefono", value=s_telefono_val)
-    st.selectbox(
-        "Tipo Camera", ["singola", "doppia", "matrimoniale", "quadruple"], 
-        key="s_tipo",
-        index=["singola", "doppia", "matrimoniale", "quadruple"].index(s_tipo_val)
-    )
-    st.selectbox(
-        "Uso", ["singolo", "doppio"], 
-        key="s_uso", 
-        index=["singolo", "doppio"].index(s_uso_val)
-    )
-
-    if st.session_state.s_uso == "doppio":
+    st.selectbox("Tipo Camera", ["singola","doppia","matrimoniale","quadruple"], key="s_tipo",
+                 index=["singola","doppia","matrimoniale","quadruple"].index(s_tipo_val))
+    st.selectbox("Uso", ["singolo","doppio"], key="s_uso",
+                 index=["singolo","doppio"].index(s_uso_val))
+    if st.session_state.s_uso=="doppio":
         st.text_input("Dipendente 2 (facoltativo)", key="s_dipendente2", value=s_dipendente2_val)
-
     st.text_area("Richieste e segnalazioni", key="s_note", value=s_note_val, height=60)
 
-    # Lista camere disponibili
+    # Lista camere
     key_tipo = TIPO_TO_KEY.get(st.session_state.s_tipo, st.session_state.s_tipo)
     camere_list = []
     for piano in CAMERE.values():
         camere_list.extend(piano.get(key_tipo, []))
     if not camere_list:
         camere_list = ["Nessuna camera disponibile"]
-
     sel_index = 0
-    if st.session_state.s_camera and st.session_state.s_camera in camere_list:
+    if st.session_state.s_camera in camere_list:
         sel_index = camere_list.index(st.session_state.s_camera)
     st.selectbox("Camera", camere_list, key="s_camera", index=sel_index)
 
     st.markdown("---")
-    c1, c2 = st.columns(2)
+    c1,c2 = st.columns(2)
 
-    # Pulsante Nuova Prenotazione
-    with c1:
-        if st.button("🆕 Nuova prenotazione"):
-            # Aggiorna solo le chiavi necessarie, evitando session_state.update()
-            st.session_state["s_azienda"] = ""
-            st.session_state["s_dipendente"] = ""
-            st.session_state["s_dipendente2"] = ""
-            st.session_state["s_telefono"] = ""
-            st.session_state["s_note"] = ""
-            st.session_state["s_tipo"] = "singola"
-            st.session_state["s_uso"] = "singolo"
-            st.session_state["s_camera"] = ""
-            st.session_state["selezionate"] = []
-            st.rerun()
+    # Pulsante nuova prenotazione
+if st.button("🆕 Nuova prenotazione"):
+    keys_defaults = {
+        "s_azienda": "",
+        "s_dipendente": "",
+        "s_dipendente2": "",
+        "s_telefono": "",
+        "s_note": "",
+        "s_tipo": "singola",
+        "s_uso": "singolo",
+        "s_camera": "",
+        "selezionate": []
+    }
+    for k, v in keys_defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+        else:
+            st.session_state[k] = v
+    st.rerun()
+
 
     # Pulsante Prenota
     with c2:
         if st.button("Prenota"):
-            if not st.session_state.s_azienda or not st.session_state.s_dipendente or not st.session_state.selezionate or st.session_state.s_camera == "Nessuna camera disponibile":
+            if not st.session_state.s_azienda or not st.session_state.s_dipendente or not st.session_state.selezionate or st.session_state.s_camera=="Nessuna camera disponibile":
                 st.warning("Compila tutti i campi obbligatori e seleziona almeno un giorno.")
             elif not is_consecutive(st.session_state.selezionate):
                 st.error("I giorni selezionati devono essere consecutivi.")
             else:
-                conflicts = []
+                conflicts=[]
                 for d in st.session_state.selezionate:
                     hits = bookings_for_day(d)
-                    for _, p in hits:
-                        if p[6] == st.session_state.s_camera:
+                    for _,p in hits:
+                        if p[6]==st.session_state.s_camera:
                             conflicts.append(d.strftime("%d/%m/%Y"))
                 if conflicts:
                     st.error(f"Conflitto: la camera {st.session_state.s_camera} è già prenotata in: {', '.join(conflicts)}")
                 else:
-                    n = len(st.session_state.selezionate)
-                    start = min(st.session_state.selezionate)
-                    total = calcola_prezzo_per_notti(st.session_state.s_tipo, st.session_state.s_uso, sorted(st.session_state.selezionate))
+                    n=len(st.session_state.selezionate)
+                    start=min(st.session_state.selezionate)
+                    total=calcola_prezzo_per_notti(st.session_state.s_tipo, st.session_state.s_uso, sorted(st.session_state.selezionate))
                     st.session_state.prenotazioni.append([
                         st.session_state.s_azienda,
                         st.session_state.s_dipendente,
@@ -258,37 +407,28 @@ with st.sidebar:
                         st.session_state.s_note
                     ])
                     st.success(f"Prenotazione registrata. Totale: €{total}")
-                    st.session_state.selezionate = []
+                    st.session_state.selezionate=[]
 
     # Reset del flag reset_fields
-    if st.session_state.get("reset_fields", False):
-        st.session_state.reset_fields = False
+    st.session_state.reset_fields=False
 
-    # Tabella prenotazioni e controlli
+    # Tabella prenotazioni
     if st.session_state.prenotazioni:
-        dfp = pd.DataFrame(
-            st.session_state.prenotazioni,
-            columns=["Azienda","Dipendente","Dipendente 2","Check-in","Notti","Tipo","Camera","Uso","Totale €","Telefono","Note"]
-        )
-        st.dataframe(dfp, use_container_width=True)
-
-        # Eliminazione record
+        dfp=pd.DataFrame(st.session_state.prenotazioni, columns=["Azienda","Dipendente","Dipendente 2","Check-in","Notti","Tipo","Camera","Uso","Totale €","Telefono","Note"])
+        st.dataframe(dfp,use_container_width=True)
         idx_to_remove = st.number_input("Elimina record (indice)", min_value=0, max_value=len(dfp)-1, step=1)
         if st.button("Elimina record selezionato"):
             st.session_state.prenotazioni.pop(int(idx_to_remove))
             st.success(f"Record {int(idx_to_remove)} eliminato.")
 
-        # Download PDF
-        pdf_buffer = genera_pdf_prenotazioni()
+        pdf_buffer=genera_pdf_prenotazioni()
         st.download_button("Riepilogo PDF", data=pdf_buffer, file_name="richiesta_preno.pdf", mime="application/pdf")
 
-        # Link WhatsApp
         totale = calcola_totale_prenotazioni()
-        riepilogo = "\n".join([f"{p[0]} {p[1]} {p[2]} {p[3]} - {p[4]}n - €{p[8]}" for p in st.session_state.prenotazioni])
-        messaggio = f"Richiesta di prenotazione:\n{riepilogo}\nTotale: €{totale}"
-        link_whatsapp = f"https://wa.me/?text={quote(messaggio)}"
+        riepilogo="\n".join([f"{p[0]} {p[1]} {p[2]} {p[3]} - {p[4]}n - €{p[8]}" for p in st.session_state.prenotazioni])
+        messaggio=f"Richiesta di prenotazione:\n{riepilogo}\nTotale: €{totale}"
+        link_whatsapp=f"https://wa.me/?text={quote(messaggio)}"
         st.markdown(f"[Invia richiesta con WhatsApp]({link_whatsapp})", unsafe_allow_html=True)
-
 
 # --- Calendario ---
 mese = st.session_state.current_month
