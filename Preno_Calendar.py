@@ -187,20 +187,27 @@ with st.sidebar:
     c1, c2 = st.columns(2)
 
     # Pulsante Nuova Prenotazione
-    with c1:
-        if st.button("🆕 Nuova prenotazione"):
-            st.session_state.update({
-                "s_azienda": "",
-                "s_dipendente": "",
-                "s_dipendente2": "",
-                "s_telefono": "",
-                "s_note": "",
-                "s_tipo": "singola",
-                "s_uso": "singolo",
-                "s_camera": "",
-                "selezionate": []
-            })
-            st.rerun()
+if st.button("🆕 Nuova prenotazione"):
+    defaults = {
+        "s_azienda": "",
+        "s_dipendente": "",
+        "s_dipendente2": "",
+        "s_telefono": "",
+        "s_note": "",
+        "s_tipo": "singola",
+        "s_uso": "singolo",
+        "s_camera": "",
+        "selezionate": []
+    }
+
+    for key, val in defaults.items():
+        if key in st.session_state:
+            st.session_state[key] = val
+        else:
+            st.session_state[key] = val
+
+    st.rerun()
+
 
     # Pulsante Prenota
     with c2:
